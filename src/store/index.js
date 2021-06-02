@@ -37,22 +37,66 @@ export default createStore({
         }
     },
     actions: {
+        cerrarSesion({commit}){
+                commit('setUser',null);
+                router.push('/ingreso');
+                localStorage.removeItem('usuario');
+        },
+        async ingresoUsuario({ commit }, usuario){
+                 try {
+                     const resp = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyC5mVv1nq0sweSiI_jwkPFg8KXjq2uH65k',{
+                        method: 'POST',
+                        body: JSON.stringify({
+                            email:usuario.email,
+                            password:usuario.password,
+                            returnSecureToken:true
+                        })
+                     });
+                     const userDB = await resp.json();
+                     console.log('userDB ',userDB);
+                     if(userDB.error){
+                         return  console.log(userDB.error);
+                     }
+                     commit('setUser',userDB);
+                     router.push('/');
+                     localStorage.setItem('usuario',JSON.stringify(userDB))
+                 } catch (error) {
+                     console.log(error);
+                 }
+        },
         async registrarUsuario({ commit }, usuario) {
             try {
-                const resp = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=[API_KEY]', {
+                const resp = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyC5mVv1nq0sweSiI_jwkPFg8KXjq2uH65k', {
                     method: 'POST',
                     body: JSON.stringify({
-
+                        email:usuario.email,
+                        password:usuario.password,
+                        returnSecureToken:true
                     })
                 })
+                const userDB = await resp.json();
+                console.log(userDB);
+                if(userDB.error){
+                    console.log(userDB.error);
+                    return
+                }
+                commit('setUser',userDB);
+                router.push('/');
+                localStorage.setItem('usuario',JSON.stringify(userDB))
             } catch (error) {
-                console.log(error);
+                console.log(error.errors);
             }
             console.log(usuario);
         },
-        async cargarLocalStorage({ commit }) {
+        async cargarLocalStorage({ commit,state }) {
+
+            if(localStorage.getItem('usuario')){
+                commit('setUser',JSON.parse(localStorage.getItem('usuario')) );
+            }else{
+                return  commit('setUser',null);//--> si el usuario no existe  entonces  se sale y ya no hace la peticion a la base de datos
+            }
             try {
-                const res = await fetch('https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas.json');
+                const res = await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${state.user.localId}.json?auth=${state.user.idToken}`);
                 const dataDB = await res.json();
                 // console.log(dataDB);
                 const arrayTareas = [];
@@ -65,9 +109,9 @@ export default createStore({
                 console.log(error);
             }
         },
-        async setTareas({ commit }, tarea) {
+        async setTareas({ commit ,state }, tarea) {
             try {
-                const rest = await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${tarea.id}.json`, {
+                const rest = await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${state.user.localId}/${tarea.id}.json?auth=${state.user.idToken}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -82,9 +126,9 @@ export default createStore({
 
             commit('set', tarea);
         },
-        async deleteTareas({ commit }, id) {
+        async deleteTareas({ commit,state  }, id) {
             try {
-                await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${id}.json`, {
+                await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${state.user.localId}/${id}.json?auth=${state.user.idToken}`, {
 
                     method: 'DELETE'
                 });
@@ -97,10 +141,10 @@ export default createStore({
         setTarea({ commit }, id) {
             commit('tarea', id)
         },
-        async updateTarea({ commit }, tarea) {
+        async updateTarea({ commit,state }, tarea) {
 
             try {
-                const res = await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${tarea.id}.json`, {
+                const res = await fetch(`https://udemy-api-be9b7-default-rtdb.firebaseio.com/tareas/${state.user.localId}/${tarea.id}.json?auth=${state.user.idToken}`, {
                     method: 'PATCH',
                     body: JSON.stringify(tarea)
                 });
@@ -113,5 +157,10 @@ export default createStore({
             }
         }
     },
-    modules: {}
+    modules: {},
+    getters:{
+        usuarioAutenticado(state){
+                    return !! state.user;
+        }
+    }
 })
